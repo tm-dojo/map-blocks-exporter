@@ -1,17 +1,8 @@
 
-bool g_inCustomMenu = false;
-MemoryBuffer membuff = MemoryBuffer(0);
-
-class Block 
-{
-    string blockName;
-    int blockId;
-    int count;
-}
-
 class UploadHandle
 {
-    string challengeId;
+    string mapUId;
+    Json::Value jsonBlocksPayload;
 }
 
 vec3 getRealCoords(nat3 coords)
@@ -27,45 +18,66 @@ vec3 getRealCoords(nat3 coords)
 }
 
 void ExtractBlocks()
-{
-    dictionary blocksDict;
-    array<string> blockNames;
-    int outStr;
-    
-    uint8 blockIndex = 0;
+{ 
     auto app = GetApp();
-
-    for (int i = 0; i < app.RootMap.Blocks.Length; i++) {
-        auto block = app.RootMap.Blocks[i];
-
-        string name = block.BlockModel.Name;
-        uint8 blockNameLen = name.get_Length();
-        uint8 dir = block.Direction;
-        vec3 coord = getRealCoords(block.Coord);
-
-        membuff.Write(blockNameLen);
-        membuff.Write(name);
-        membuff.Write(dir);
-
-        membuff.Write(coord.x);
-        membuff.Write(coord.y);
-        membuff.Write(coord.z);
-
-        auto blockUnits = block.BlockUnits;
-        uint8 blockUnitsLen = blockUnits.get_Length();
-
-        membuff.Write(blockUnitsLen);
-        for (int i = 0; i < blockUnits.get_Length(); i++) {
-            auto unit = blockUnits[i];
-            membuff.Write(unit.Offset.x);
-            membuff.Write(unit.Offset.y);
-            membuff.Write(unit.Offset.z);
-        }
+    
+    if (@app == null) {
+        UI::ShowNotification("app == null");
+        return;
     }
+
+    auto map = app.RootMap;
+    if (@map == null) {
+        UI::ShowNotification("map == null");
+        return;
+    }
+
+    Json::Value payload = Json::Object();
+
+    Json::Value nadeoBlocks = Json::Array();
+    for (int i = 0; i < int(map.Blocks.Length); i++) {
+        Json::Value blockPayload = Json::Object();
+
+        {
+            auto block = map.Blocks[i];
+
+            // Name
+            blockPayload["name"] = Json::Value(block.BlockModel.Name);
+
+            // Direction
+            blockPayload["dir"] = Json::Value(block.Direction);
+
+            // Position
+            Json::Value coordJson = Json::Array();
+            vec3 coord = getRealCoords(block.Coord);
+            coordJson.Add(coord.x);
+            coordJson.Add(coord.y);
+            coordJson.Add(coord.z);
+            blockPayload["pos"] = coordJson;
+
+            // BlockUnits
+            Json::Value blockOffsetsJson = Json::Array();
+            for (int j = 0; j < int(block.BlockUnits.Length); j++) {
+                auto unit = block.BlockUnits[j];
+                Json::Value offsetJson = Json::Array();
+                offsetJson.Add(unit.Offset.x);
+                offsetJson.Add(unit.Offset.y);
+                offsetJson.Add(unit.Offset.z);
+                blockOffsetsJson.Add(offsetJson);
+            }
+            blockPayload["blockOffsets"] = blockOffsetsJson;
+        }
+
+        nadeoBlocks.Add(blockPayload);
+    }
+
+    payload["nadeoBlocks"] = nadeoBlocks;
+
 
     ref @uploadHandle = UploadHandle();
 
-    cast<UploadHandle>(uploadHandle).challengeId = app.PlaygroundScript.Map.EdChallengeId;
+    cast<UploadHandle>(uploadHandle).mapUId = app.PlaygroundScript.Map.EdChallengeId;
+    cast<UploadHandle>(uploadHandle).jsonBlocksPayload = payload;
 
     startnew(UploadMapData, uploadHandle);
 }
@@ -74,25 +86,24 @@ void UploadMapData(ref @uploadHandle)
 {
     print("Starting Upload");
     UploadHandle @uh = cast<UploadHandle>(uploadHandle);
-    print("Membuff: " + membuff.GetSize());
 
-    membuff.Seek(0);
-    
+    print(Json::Write(uh.jsonBlocksPayload));
+
     Net::HttpRequest req;
     req.Method = Net::HttpMethod::Post;
-    req.Url = "http://localhost/map-blocks?mapUId=" + uh.challengeId;
-    req.Body = membuff.ReadToBase64(membuff.GetSize());
+    req.Url = "http://localhost/map-blocks?mapUId=" + uh.mapUId;
+    req.Body = Json::Write(uh.jsonBlocksPayload);
     dictionary@ Headers = dictionary();
-    Headers["Content-Type"] = "application/octet-stream";
+    Headers["Content-Type"] = "application/json";
     @req.Headers = Headers;
     
     req.Start();
+
     while (!req.Finished()) {
         yield();
     }
-    print("Finished Upload");
 
-    membuff.Resize(0);
+    print("Finished Upload");
 }
 
 void RenderMenu()
