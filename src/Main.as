@@ -28,7 +28,7 @@ void ExtractBlocks()
 
     auto map = app.RootMap;
     if (@map == null) {
-        UI::ShowNotification("map == null");
+        UI::ShowNotification("app.RootMap == null");
         return;
     }
 
@@ -111,15 +111,10 @@ void RenderMenu()
 	auto app = cast<CGameManiaPlanet>(GetApp());
 	auto menus = cast<CTrackManiaMenus>(app.MenuManager);
 
-	if (UI::BeginMenu("Block Extractor (JSON)")) {
-		if (UI::MenuItem("Extract Blocks", "", false, true)) {
+	if (UI::BeginMenu("Map Block Extractor")) {
+		if (UI::MenuItem("Extract Blocks (JSON)", "", false, true)) {
             ExtractBlocks();
 		}
 		UI::EndMenu();
 	}
-}
-
-void Main()
-{
-    print("BlockExtractorJSON: Init");
 }

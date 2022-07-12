@@ -1,5 +1,5 @@
 [meta]
-name = "BlockExporterJson"
+name = "MapBlocksExporter"
 author = "TeamDojo"
 category = "Utilities"
 version = "0.1.0"
