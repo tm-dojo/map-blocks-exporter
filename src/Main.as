@@ -34,6 +34,7 @@ void ExtractBlocks()
 
     Json::Value payload = Json::Object();
 
+    // BLOCKS
     Json::Value nadeoBlocks = Json::Array();
     for (int i = 0; i < int(map.Blocks.Length); i++) {
         Json::Value blockPayload = Json::Object();
@@ -70,15 +71,42 @@ void ExtractBlocks()
 
         nadeoBlocks.Add(blockPayload);
     }
-
     payload["nadeoBlocks"] = nadeoBlocks;
 
+    // ANCHORED OBJECTS
+    Json::Value anchoredObjects = Json::Array();
+    for (int i = 0; i < int(map.AnchoredObjects.Length); i++) {
+        Json::Value anchoredObjectsPayload = Json::Object();
 
+        {
+            auto anchoredObject = map.AnchoredObjects[i];
+
+            // Name
+            anchoredObjectsPayload["name"] = Json::Value(anchoredObject.ItemModel.Name);
+
+            // Position
+            Json::Value coordJson = Json::Array();
+            vec3 coord = anchoredObject.AbsolutePositionInMap;
+            coordJson.Add(coord.x);
+            coordJson.Add(coord.y);
+            coordJson.Add(coord.z);
+            anchoredObjectsPayload["pos"] = coordJson;
+
+            // Pitch, Yaw, Roll
+            anchoredObjectsPayload["pitch"] = Json::Value(anchoredObject.Pitch);
+            anchoredObjectsPayload["yaw"] = Json::Value(anchoredObject.Yaw);
+            anchoredObjectsPayload["roll"] = Json::Value(anchoredObject.Roll);
+        }
+
+        anchoredObjects.Add(anchoredObjectsPayload);
+    }
+    payload["anchoredObjects"] = anchoredObjects;
+    
+
+    // Send payload
     ref @uploadHandle = UploadHandle();
-
     cast<UploadHandle>(uploadHandle).mapUId = app.PlaygroundScript.Map.EdChallengeId;
     cast<UploadHandle>(uploadHandle).jsonBlocksPayload = payload;
-
     startnew(UploadMapData, uploadHandle);
 }
 
