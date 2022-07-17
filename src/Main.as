@@ -36,15 +36,39 @@ void ExtractBlocks()
 
     // BLOCKS
     Json::Value nadeoBlocks = Json::Array();
+    Json::Value freeModeBlocks = Json::Array();
     for (int i = 0; i < int(map.Blocks.Length); i++) {
         Json::Value blockPayload = Json::Object();
 
-        {
-            auto block = map.Blocks[i];
+        auto block = map.Blocks[i];
 
-            // Name
-            blockPayload["name"] = Json::Value(block.BlockModel.Name);
+        // Name
+        blockPayload["name"] = Json::Value(block.BlockModel.Name);
 
+        // Thanks to zayshaa for free block detection code: https://gist.github.com/ZayshaaCodes/d4223fe200208d68e5afb206bdd39367
+        // seems to be consistently 0 when the block is placed in free mode, this could easily change...
+        auto isFree = Dev::GetOffsetInt8(block, 0x50) == 0;
+
+        if (isFree) {	
+            auto pos = Dev::GetOffsetVec3(block, 0x6c);
+            auto rot = Dev::GetOffsetVec3(block, 0x78);	
+
+            // Position
+            Json::Value posJson = Json::Array();
+            posJson.Add(pos.x);
+            posJson.Add(pos.y);
+            posJson.Add(pos.z);
+            blockPayload["pos"] = posJson;
+
+            // Position
+            Json::Value rotJson = Json::Array();
+            rotJson.Add(rot.x);
+            rotJson.Add(rot.y);
+            rotJson.Add(rot.z);
+            blockPayload["rot"] = rotJson;
+
+            freeModeBlocks.Add(blockPayload);
+        } else  {
             // Direction
             blockPayload["dir"] = Json::Value(block.Direction);
 
@@ -66,12 +90,14 @@ void ExtractBlocks()
                 offsetJson.Add(unit.Offset.z);
                 blockOffsetsJson.Add(offsetJson);
             }
-            blockPayload["blockOffsets"] = blockOffsetsJson;
+            blockPayload["blockOffsets"] = blockOffsetsJson;     
+
+            nadeoBlocks.Add(blockPayload);        
         }
 
-        nadeoBlocks.Add(blockPayload);
     }
     payload["nadeoBlocks"] = nadeoBlocks;
+    payload["freeModeBlocks"] = freeModeBlocks;
 
     // ANCHORED OBJECTS
     Json::Value anchoredObjects = Json::Array();
@@ -82,7 +108,11 @@ void ExtractBlocks()
             auto anchoredObject = map.AnchoredObjects[i];
 
             // Name
-            anchoredObjectsPayload["name"] = Json::Value(anchoredObject.ItemModel.Name);
+            auto blockId = anchoredObject.ItemModel.IdName;
+            auto split = blockId.Split("\\");
+            auto last = split[split.Length - 1];
+            auto blockNameFromId = last.Replace(".Item.gbx", "").Replace(".Item.Gbx", "");
+            anchoredObjectsPayload["name"] = Json::Value(blockNameFromId);
 
             // Position
             Json::Value coordJson = Json::Array();
@@ -141,7 +171,7 @@ void RenderMenu()
 
 	if (UI::BeginMenu("Map Block Extractor")) {
 		if (UI::MenuItem("Extract Blocks (JSON)", "", false, true)) {
-            ExtractBlocks();
+            startnew(ExtractBlocks);
 		}
 		UI::EndMenu();
 	}
