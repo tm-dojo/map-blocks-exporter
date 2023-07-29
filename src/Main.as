@@ -2,7 +2,7 @@
 class UploadHandle
 {
     string mapUId;
-    Json::Value jsonBlocksPayload;
+    // Json::Value jsonBlocksPayload;
 }
 
 vec3 getRealCoords(nat3 coords)
@@ -16,6 +16,9 @@ vec3 getRealCoords(nat3 coords)
 
     return coord;
 }
+
+Json::Value payload = Json::Object();
+string payloadString = "";
 
 void ExtractBlocks()
 { 
@@ -32,15 +35,27 @@ void ExtractBlocks()
         return;
     }
 
-    Json::Value payload = Json::Object();
+    payload = Json::Object();
 
     // BLOCKS
     Json::Value nadeoBlocks = Json::Array();
     Json::Value freeModeBlocks = Json::Array();
     for (int i = 0; i < int(map.Blocks.Length); i++) {
+    // for (int i = 0; i < int(72500); i++) {
+        if (i % 1000 == 0) {
+            print("Blocks: " + i + "/" + int(map.Blocks.Length));
+            yield();
+        }
+
         Json::Value blockPayload = Json::Object();
 
         auto block = map.Blocks[i];
+
+        if (block.BlockModel.Name == "VoidBlock1x1") continue;
+        if (block.BlockModel.Name == "VoidFull") continue;
+        if (block.BlockModel.Name == "Grass") continue;
+
+        print("i: " + i + " " + block.BlockModel.Name);
 
         // Name
         blockPayload["name"] = Json::Value(block.BlockModel.Name);
@@ -96,12 +111,21 @@ void ExtractBlocks()
         }
 
     }
+
+    print(nadeoBlocks.Length);
+    print(freeModeBlocks.Length);
+
     payload["nadeoBlocks"] = nadeoBlocks;
     payload["freeModeBlocks"] = freeModeBlocks;
 
     // ANCHORED OBJECTS
     Json::Value anchoredObjects = Json::Array();
     for (int i = 0; i < int(map.AnchoredObjects.Length); i++) {
+        if (i % 1000 == 0) {
+            print("Anchored objects: " + i + "/" + int(map.AnchoredObjects.Length));
+            yield();
+        }
+
         Json::Value anchoredObjectsPayload = Json::Object();
 
         {
@@ -131,13 +155,27 @@ void ExtractBlocks()
         anchoredObjects.Add(anchoredObjectsPayload);
     }
     payload["anchoredObjects"] = anchoredObjects;
-    
+    print(anchoredObjects.Length);
 
-    // Send payload
-    ref @uploadHandle = UploadHandle();
-    cast<UploadHandle>(uploadHandle).mapUId = app.PlaygroundScript.Map.EdChallengeId;
-    cast<UploadHandle>(uploadHandle).jsonBlocksPayload = payload;
-    startnew(UploadMapData, uploadHandle);
+    print("Set anchored objects");
+
+    yield();
+
+    payloadString = Json::Write(payload);
+    print("Write payloadString");
+
+    yield();
+    
+    IO::SetClipboard(payloadString);
+    // // Send payload
+    // ref @uploadHandle = UploadHandle();
+    // print("Init uploadHandle");
+    // cast<UploadHandle>(uploadHandle).mapUId = app.PlaygroundScript.Map.EdChallengeId;
+    // // print("Set map ID");
+    // // cast<UploadHandle>(uploadHandle).jsonBlocksPayload = payload;
+    // print("Set payload");
+    // startnew(UploadMapData, uploadHandle);
+
 }
 
 void UploadMapData(ref @uploadHandle)
@@ -145,17 +183,19 @@ void UploadMapData(ref @uploadHandle)
     print("Starting Upload");
     UploadHandle @uh = cast<UploadHandle>(uploadHandle);
 
-    print(Json::Write(uh.jsonBlocksPayload));
+    // print(Json::Write(uh.payload));
 
     Net::HttpRequest req;
     req.Method = Net::HttpMethod::Post;
     req.Url = "http://localhost/map-blocks?mapUId=" + uh.mapUId;
-    req.Body = Json::Write(uh.jsonBlocksPayload);
+    req.Body = payloadString;
     dictionary@ Headers = dictionary();
     Headers["Content-Type"] = "application/json";
     @req.Headers = Headers;
     
     req.Start();
+
+    print("Request started");
 
     while (!req.Finished()) {
         yield();
